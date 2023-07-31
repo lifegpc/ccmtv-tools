@@ -1,0 +1,7 @@
+__pycache__
+build
+*.egg-info
+dist
+venv
+ccmtv.json
+cookie.txt
