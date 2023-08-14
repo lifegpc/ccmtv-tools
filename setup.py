@@ -37,7 +37,7 @@ else:
     }
 setup(
     name="ccmtv-tools",
-    version="1.0.0.0",
+    version=version,
     url="https://github.com/lifegpc/ccmtv-tools",
     author="lifegpc",
     author_email="root@lifegpc.com",

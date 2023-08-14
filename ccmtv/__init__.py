@@ -9,6 +9,7 @@ import webbrowser
 from time import time, strftime, localtime
 from re import compile, IGNORECASE
 from traceback import print_exc
+from random import random
 
 IP_REG = compile(r"当前 IP：([^ ]+)", IGNORECASE)
 ccmtv_app_api_url = "https://www.ccmtv.cn//ccmtvtp/Home/CcmtvAppApi/index"
@@ -37,6 +38,24 @@ lat = tk.StringVar()
 address = tk.StringVar()
 ip = tk.StringVar()
 custom_ip = tk.BooleanVar()
+enable_radius = tk.BooleanVar()
+lng_radius = tk.StringVar()
+lat_radius = tk.StringVar()
+tvalid = tk.BooleanVar()
+tlng = tk.DoubleVar()
+tlat = tk.DoubleVar()
+tip = tk.StringVar()
+ttext = tk.StringVar()
+address_trace = tk.StringVar()
+ip_trace = tk.StringVar()
+trust_env = tk.BooleanVar()
+
+
+def trust_env_trace(var, index, mod):
+    ses.trust_env = trust_env.get()
+
+
+trust_env.trace_add("write", trust_env_trace)
 
 ses = requests.Session()
 ses.headers["User-agent"] = "CCMTV/5.3.2 (iPad; iOS 16.5.1; Scale/2.00)"
@@ -69,7 +88,7 @@ def decode_data(d: bytes):
 def saveconfig():
     with open("ccmtv.json", "w") as f:
         json.dump({"username": pusername, "passwd": ppasswd,
-                   "uid": puid, "checkinData": checkinData}, f, ensure_ascii=False)
+                   "uid": puid, "checkinData": checkinData, "trust_env": trust_env.get()}, f, ensure_ascii=False)
 
 
 def loadconfig():
@@ -86,6 +105,10 @@ def loadconfig():
                 puid = i["uid"]
                 if "checkinData" in i:
                     checkinData = i["checkinData"]
+                if "trust_env" in i:
+                    trust_env.set(i["trust_env"])
+                else:
+                    trust_env.set(True)
                 return
             except:
                 pass
@@ -214,25 +237,15 @@ def getIP():
 
 
 def checkin():
-    if not lng.get() or not lat.get() or not address.get():
-        info.configure(text="经度、维度和地址不能为空。")
+    if not tvalid.get():
+        info.configure(text="请按照提示填写相关内容。")
         return
-    cip = custom_ip.get()
-    if cip and not ip.get():
-        info.configure(text="IP地址不能为空")
-        return
-    else:
-        try:
-            ip.set(getIP())
-        except Exception:
-            info.configure(text="获取IP地址失败")
-            print_exc()
-            return
-    checkinData[sign_type.get()] = {"lng": lng.get(), "lat": lat.get(
-    ), "address": address.get(), "custom_ip": custom_ip.get(), "ip": ip.get()}
+    checkinData[sign_type.get()] = {"lng": lng.get(), "lat": lat.get(), "address": address.get(), "custom_ip": custom_ip.get(
+    ), "ip": ip.get(), "enable_radius": enable_radius.get(), "lng_radius": lng_radius.get(), "lat_radius": lat_radius.get()}
     saveconfig()
-    d = {"group_name": sign_type.get(), "date": getDate(), "ip": ip.get(), "lng": lng.get(), "lat": lat.get(), "address": address.get(), "sign_port": "wx",
+    d = {"group_name": sign_type.get(), "date": getDate(), "ip": tip.get(), "lng": str(tlng.get()), "lat": str(tlat.get()), "address": address.get(), "sign_port": "wx",
          "device[model]": "iPad13,18", "device[source]": "iOS", "device[systemversion]": "16.5.1", "device[version]": "V5.3.2", "config_id": "undefined", "config_key": "undefined", "content": ""}
+    print(d)
     re = ses.post(signin_sign_url, d, headers=WEB_Headers)
     r = re.json()
     print(r)
@@ -248,6 +261,12 @@ def initSigninTypeData():
     signin_data_list = getSigninTypeData()
     f = ttk.LabelFrame(frameCheckIn, text=sign_type.get())
     f.grid(column=0, row=1, padx=10, pady=10, sticky="W", columnspan=2)
+    if address_trace.get():
+        address.trace_remove("write", address_trace.get())
+        address_trace.set("")
+    if ip_trace.get():
+        ip.trace_remove("write", ip_trace.get())
+        ip_trace.set("")
     i = 0
     for d in signin_data_list:
         btn_text = d['btn_text']
@@ -264,43 +283,114 @@ def initSigninTypeData():
         i += 1
     st = sign_type.get()
 
+    def check_valid(updateIp=False):
+        if not lng.get() or not lat.get() or not address.get():
+            ttext.set("经度、维度和地址不能为空。")
+            tvalid.set(False)
+            return
+        try:
+            dlng = float(lng.get())
+            dlat = float(lat.get())
+        except Exception:
+            ttext.set("无法解析经度和维度。")
+            tvalid.set(False)
+            return
+        if custom_ip.get():
+            tip.set(ip.get())
+        else:
+            if updateIp or not tip.get():
+                try:
+                    tip.set(getIP())
+                    ip.set(tip.get())
+                except Exception:
+                    ttext.set("获取IP失败。")
+                    tvalid.set(False)
+                    print_exc()
+                    return
+        if enable_radius.get():
+            try:
+                rlng = float(lng_radius.get())
+                rlat = float(lat_radius.get())
+            except Exception:
+                ttext.set("无法解析经度范围和维度范围。")
+                tvalid.set(False)
+                return
+            tlng.set(round(dlng + (random() - 0.5) * rlng, 6))
+            tlat.set(round(dlat + (random() - 0.5) * rlat, 6))
+        else:
+            tlng.set(dlng)
+            tlat.set(dlat)
+        tvalid.set(True)
+        ttext.set(
+            f"将使用 {tlng.get()},{tlat.get()}（{address.get()}, {tip.get()}）")
+
     def set_default():
         lng.set("")
         lat.set("")
         address.set("")
         custom_ip.set(False)
         ip.set("")
+        enable_radius.set(True)
+        lng_radius.set("0.00001")
+        lat_radius.set("0.00001")
     try:
         if st in checkinData:
             d = checkinData[st]
+            set_default()
             lng.set(d["lng"])
             lat.set(d["lat"])
             address.set(d["address"])
             custom_ip.set(d["custom_ip"])
             ip.set(d["ip"])
+            if 'enable_radius' in d:
+                enable_radius.set(d['enable_radius'])
+            if 'lng_radius' in d:
+                lng_radius.set(d["lng_radius"])
+            if 'lat_radius' in d:
+                lat_radius.set(d["lat_radius"])
         else:
             set_default()
     except:
         set_default()
     ttk.Label(f, text="经度：").grid(
         column=0, row=i, padx=10, pady=10, sticky="W")
-    ttk.Spinbox(f, textvariable=lng, from_=-180, to=180, increment=0.000001).grid(
-        column=1, columnspan=2, row=i, padx=10, pady=10, sticky="W")
+    ttk.Spinbox(f, textvariable=lng, from_=-180, to=180, increment=0.000001, command=check_valid).grid(
+        column=1, row=i, padx=10, pady=10, sticky="W")
     i += 1
     ttk.Label(f, text="维度：").grid(
         column=0, row=i, padx=10, pady=10, sticky="W")
-    ttk.Spinbox(f, textvariable=lat, from_=-90, to=90, increment=0.000001).grid(
-        column=1, columnspan=2, row=i, padx=10, pady=10, sticky="W")
+    ttk.Spinbox(f, textvariable=lat, from_=-90, to=90, increment=0.000001, command=check_valid).grid(
+        column=1, row=i, padx=10, pady=10, sticky="W")
     i += 1
     ttk.Label(f, text="地址：").grid(
         column=0, row=i, padx=10, pady=10, sticky="W")
     ttk.Entry(f, textvariable=address).grid(
-        column=1, columnspan=2, row=i, padx=10, pady=10, sticky="W")
+        column=1, row=i, padx=10, pady=10, sticky="W")
+    address_trace.set(address.trace_add(
+        "write", lambda var, index, mode: check_valid()))
     i += 1
-    ttk.Checkbutton(f, text="自定义IP：", variable=custom_ip).grid(
+    ttk.Checkbutton(f, text="自定义IP：", variable=custom_ip, command=lambda: check_valid(True)).grid(
         column=0, row=i, padx=10, pady=10, sticky="W")
     ttk.Entry(f, textvariable=ip).grid(
-        column=1, columnspan=2, row=i, padx=10, pady=10, sticky="W")
+        column=1, row=i, padx=10, pady=10, sticky="W")
+    ip_trace.set(ip.trace_add("write", lambda var, index, mode: check_valid()))
+    i += 1
+    ttk.Checkbutton(f, text="一定范围内随机化", variable=enable_radius, command=check_valid).grid(
+        column=0, row=i, padx=10, pady=10, sticky="W")
+    i += 1
+    ttk.Label(f, text="经度范围：").grid(
+        column=0, row=i, padx=10, pady=10, sticky="W")
+    ttk.Spinbox(f, textvariable=lng_radius, from_=0, to=0.0001, increment=0.000001, command=check_valid).grid(
+        column=1, row=i, padx=10, pady=10, sticky="W")
+    i += 1
+    ttk.Label(f, text="维度范围：").grid(
+        column=0, row=i, padx=10, pady=10, sticky="W")
+    ttk.Spinbox(f, textvariable=lat_radius, from_=0, to=0.0001, increment=0.000001, command=check_valid).grid(
+        column=1, row=i, padx=10, pady=10, sticky="W")
+    i += 1
+    ttk.Label(f, textvariable=ttext).grid(
+        column=0, row=i, columnspan=3, padx=10, pady=10, sticky="W")
+    check_valid(True)
 
 
 def openSigninPage():
@@ -383,6 +473,12 @@ infoframe = ttk.LabelFrame(frame2, text=" 状态 ")
 infoframe.grid(column=0, row=0)
 info = ttk.Label(infoframe, text="高效学习 快乐成长", width=27, anchor="center")
 info.grid(column=0, row=0, padx=10, pady=5)
+
+frame3 = ttk.Frame(win)
+frame3.grid(column=0, row=2, padx=5, pady=5)
+ttk.Checkbutton(frame3, variable=trust_env, text="信任环境变量",
+                command=lambda: saveconfig()).grid(column=0, row=0, padx=1, pady=1)
+
 loadconfig()
 
 
