@@ -5,3 +5,4 @@ dist
 venv
 ccmtv.json
 cookie.txt
+.vscode/

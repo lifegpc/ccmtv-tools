@@ -23,6 +23,7 @@ NO_SEP = (',', ':')
 win = tk.Tk()
 win.title("签到工具")
 win.resizable(0, 0)
+LABEL = tk.Label()
 pusername = ""
 ppasswd = ""
 puid = ""
@@ -278,8 +279,12 @@ def initSigninTypeData():
         ttk.Label(f, text=d["user_sign_in_time"]).grid(
             column=2, row=i, padx=10, pady=10, sticky="W")
         i += 1
-        ttk.Label(f, text=d["user_sign_in_address"]).grid(
-            column=1, columnspan=2, row=i, padx=10, pady=10, sticky="W")
+        address_text = tk.Text(f, height=1, border=0, background=win.cget(
+            "background"), font=LABEL.cget("font"))
+        address_text.insert(1.0, d["user_sign_in_address"])
+        address_text.grid(column=1, columnspan=2, row=i,
+                          padx=10, pady=10, sticky="W")
+        address_text.configure(state="disabled")
         i += 1
     st = sign_type.get()
 
